@@ -37,4 +37,9 @@ pipeline{
             }
         }
 	}
+	post {
+        	success {
+        	sh "docker rmi -f $(docker images -aq)"
+    	}
+    }
 }
