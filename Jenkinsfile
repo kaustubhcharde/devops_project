@@ -1,50 +1,40 @@
 pipeline{
-    agent any
-    tools {
-      maven 'maven3'
+	agent any
+	tools {
+        maven 'maven3'
     }
     environment {
-      DOCKER_TAG = getVersion()
+        DOCKER_TAG = "${BUILD_NUMBER}"
     }
-    stages{
-        stage('SCM'){
+	stages{
+		stage('git clone'){
+			steps{
+				git branch: 'master', credentialsId: 'git', url: 'https://github.com/kaustubhcharde/devops_project.git'
+			}
+		}
+		stage('code build'){
+			steps{
+				sh "mvn clean package"
+			}
+		}
+		stage('Docker Build'){
             steps{
-                git credentialsId: 'github', 
-                    url: 'https://github.com/javahometech/dockeransiblejenkins'
+                sh "docker build . -t dockerkbc/testapp:${DOCKER_TAG}"
             }
         }
-        
-        stage('Maven Build'){
+        stage('Docker push'){
             steps{
-                sh "mvn clean package"
-            }
-        }
-        
-        stage('Docker Build'){
-            steps{
-                sh "docker build . -t kammana/hariapp:${DOCKER_TAG} "
-            }
-        }
-        
-        stage('DockerHub Push'){
-            steps{
-                withCredentials([string(credentialsId: 'docker-hub', variable: 'dockerHubPwd')]) {
-                    sh "docker login -u kammana -p ${dockerHubPwd}"
+                withCredentials([usernamePassword(credentialsId: 'docker-hub', passwordVariable: 'dockerpasswd', usernameVariable: 'dockeruser')]) {
+                    sh "docker login -u ${dockeruser} -p ${dockerpasswd}"
                 }
-                
-                sh "docker push kammana/hariapp:${DOCKER_TAG} "
+                sh "docker push dockerkbc/testapp:${DOCKER_TAG}"
             }
         }
-        
-        stage('Docker Deploy'){
+        stage('Docker deploy'){
             steps{
-              ansiblePlaybook credentialsId: 'dev-server', disableHostKeyChecking: true, extras: "-e DOCKER_TAG=${DOCKER_TAG}", installation: 'ansible', inventory: 'dev.inv', playbook: 'deploy-docker.yml'
+                sh "ansible-galaxy collection install community.docker"
+                ansiblePlaybook credentialsId: 'ansible-creds', disableHostKeyChecking: true, extras: "-e DOCKER_TAG=${DOCKER_TAG}", installation: 'ansible', inventory: 'dev.inv', playbook: 'deploy-docker.yml'
             }
         }
-    }
-}
-
-def getVersion(){
-    def commitHash = sh label: '', returnStdout: true, script: 'git rev-parse --short HEAD'
-    return commitHash
+	}
 }
