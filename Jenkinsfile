@@ -39,7 +39,7 @@ pipeline{
 	}
 	post {
         	success {
-        	sh "docker rmi -f $(docker images -aq)"
+        	sh "docker rmi -f \$(docker images -aq)"
     	}
     }
 }
